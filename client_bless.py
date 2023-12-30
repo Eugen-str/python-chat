@@ -3,10 +3,14 @@ import threading
 from getch import getch
 from blessings import *
 from colorama import Fore, Back, Style
+import time
+
+
+HEADER = 8
+FORMAT = "utf-8"
 
 IP = "192.168.1.117"
 PORT = 5050
-FORMAT = "utf-8"
 
 MSG_DISC = "!disc"
 
@@ -66,76 +70,86 @@ class TermThreadHandling:
 
 
 class Client:
-    def __init__(self):
+    def __init__(self, ip_address, port):
         self.client_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.term_handler = TermThreadHandling()
-
-    def connect(self, ip_address, port):
-        #TODO: try-except
         self.client_sock.connect((ip_address, port))
         self.connected = True
 
     def send_msg(self, msg):
+        msg_len = len(bytes(msg.encode(FORMAT)))
+        self.client_sock.sendall(str(msg_len).encode(FORMAT) + b' ' * (HEADER - len(str(msg_len))))
         msg = msg.encode(FORMAT)
         self.client_sock.sendall(msg)
 
     def receive_msg(self):
         while self.connected:
-            msg = self.client_sock.recv(1024).decode(FORMAT)
-            if msg == MSG_DISC:
-                # not actually necessary to send "!disc", 
-                # this is to stop the thread waiting for a message on shutdown
-                self.send_msg("!disc")
-                self.connected = False
-                break
-            if msg:
-                self.term_handler.print_msg(msg)
+            msg_len = self.client_sock.recv(HEADER).decode(FORMAT)
+            if msg_len:
+                msg = self.client_sock.recv(int(msg_len)).decode(FORMAT)
+                if msg == MSG_DISC:
+                    # not actually necessary to send "!disc", 
+                    # this is to stop the thread waiting for a message on shutdown
+                    self.send_msg("!disc")
+                    self.connected = False
+                    break
+                
+                print(msg)
+                
 
     def run(self):
-        print(self.term_handler.term.clear(), end="")
         thread = threading.Thread(target=self.receive_msg)
         thread.start()
 
-        self.term_handler.print_msg("Enter your nickname")
-        self.term_handler.print_bar()
-        nickname = self.input_msg()
-        self.term_handler.print_msg(f"Nickname set to {nickname}")
-
+        nickname = input_msg("Enter your nickname: ")
+        
         self.send_msg(nickname)
         
         while self.connected:
-            self.term_handler.print_bar()
-            msg = self.input_msg()
-            self.term_handler.print_msg("you: " + msg)
+            msg = input_msg()
             self.send_msg(msg)
 
             if(msg == "!disc"):
                 break
-
+        
+        time.sleep(1)
         self.connected = False
         self.client_sock.close()
 
-    def input_msg(self):
-        msg = []
-        while True:
-            try:
-                self.term_handler.print_bar(''.join(msg))
-                char = getch()
-                if char == '\n':
-                    break
-                elif char == '\x7f':
-                    if msg:
-                        msg.pop()
-                        self.term_handler.input_remove_char()
-                else:
-                    msg.append(char)
-                    self.term_handler.input_new_char()
-                self.term_handler.print_bar(''.join(msg))
-            except KeyboardInterrupt:
-                pass
-        
-        return ''.join(msg)
+def input_msg(str=""):
+    msg = ""
+    while msg == "" or msg == "\n" or msg == "\r\n":
+        try:
+            msg = input(str)
+        except KeyboardInterrupt:
+            pass
+    
+    return msg
 
-client = Client()
-client.connect(IP, PORT)
-client.run()
+def main():
+    print("Welcome to the chat!")
+    print("For help use '!help', to connect to a server use '!conn'")
+    while True:
+        inp = input("--> ")
+        
+        if inp == "!exit":
+            break
+        elif inp == "!conn":
+            ip = input("Enter the ip address: ")
+            port = int(input("Enter TCP port: "))
+
+            try:
+                client = Client(IP, PORT)
+                client.run()
+            except:
+                print("Unable to connect to server. Try again")
+        elif inp == "!help":
+            print("Available commands: ")
+            print("\t!help - show this help screen")
+            print("\t!conn - connect to local server")
+            print("\t!exit - exit out of the program")
+        else:
+            print("Unknown command, use !help to show available options")
+
+
+if __name__=="__main__":
+    main()

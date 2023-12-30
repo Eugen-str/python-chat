@@ -1,5 +1,6 @@
 import socket
 import threading
+import random
 
 HEADER = 8
 IP = socket.gethostbyname(socket.gethostname())
@@ -15,15 +16,26 @@ RESET = '\033[0m'
 
 class ClientHandler:
     def __init__(self, conn, addr):
+        self.nickname = ""
         self.conn: socket = conn
         self.addr = addr
         self.connected = True
+        self.viewer = None
+        self.token = 0
     
+    def generate_token(self):
+        self.token = random.randint(10000,99999)
+
     def set_nickname(self, nickname):
         self.nickname = nickname
     
     def send_msg(self, msg):
         try:
+            if self.viewer:
+                msg_len = len(bytes(msg.encode(FORMAT)))
+                self.viewer.conn.sendall(str(msg_len).encode(FORMAT) + b' ' * (HEADER - len(str(msg_len))))
+                msg = msg.encode(FORMAT)
+                self.viewer.conn.sendall(msg)
             msg_len = len(bytes(msg.encode(FORMAT)))
             self.conn.sendall(str(msg_len).encode(FORMAT) + b' ' * (HEADER - len(str(msg_len))))
             msg = msg.encode(FORMAT)
@@ -85,12 +97,26 @@ class Server:
         exit(1)
 
     def handle_client(self, client: ClientHandler):
-        client.set_nickname(client.recv_msg())
-
-        if client.nickname == "":
-            import random
-            client.set_nickname(str(random.randint(10000, 50000)))
+        nickname = client.recv_msg()
         
+        if(nickname[0:6] == "!token"):
+            token = nickname[7:15]
+            for c in self.clients:
+                if token == c.token:
+                    c.viewer = client
+                    client.set_nickname(c.nickname + "viewer")
+                    client.token = token
+        else:
+            client.set_nickname(nickname)
+
+            if client.nickname == "":
+                import random
+                client.set_nickname(str(random.randint(10000, 50000)))
+                
+            client.generate_token()
+            print(CYAN + f"[CLIENT] Token of client {client.nickname}: {client.token}" + RESET)
+            client.send_msg(YELLOW + f"Your token: {client.token}" + RESET)
+
         print(CYAN + f"[CLIENT] Client {client.nickname} connected" + RESET)
         self.broadcast(CYAN + f"--- User {client.nickname} has joined the chat! ---" + RESET)
 
@@ -109,16 +135,23 @@ class Server:
             elif msg == "!help":
                 help_str = CYAN + """Available commands:\n\t!users - show all connected users
                 \t!nick - change nickname\n\t!help - show help text\n\t!disc - disconnect""" + RESET
-                client.send_msg(help_str)
+                for c in self.clients:
+                    if c.token == client.token:
+                        c.send_msg(help_str)
             
             elif msg == "!nick":
-                client.send_msg(YELLOW + "- Set your new nickname: " + RESET)
+                for c in self.clients:
+                    if c.token == client.token:
+                        c.send_msg(YELLOW + "- Set your new nickname: " + RESET)
                 old = client.nickname
                 client.set_nickname(client.recv_msg())
                 print(CYAN + f"[CLIENT] Client {old} changed their username to {client.nickname}" + RESET)
                 self.broadcast(CYAN + f"--- User {old} has changed their nickname to {client.nickname} ---" + RESET)
 
             elif msg == "!priv":
+                for c in self.clients:
+                    if c.token == client.token:
+                        c.send_msg(help_str)
                 client.send_msg(YELLOW + "Online users: " + self.get_clients())
                 client.send_msg("- Send private message to: " + RESET)
                 

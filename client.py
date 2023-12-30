@@ -1,9 +1,12 @@
 import socket
 import threading
+import time
+
+HEADER = 8
+FORMAT = "utf-8"
 
 IP = "192.168.1.117"
 PORT = 5050
-FORMAT = "utf-8"
 
 MSG_DISC = "!disc"
 
@@ -14,20 +17,25 @@ class Client:
         self.connected = True
 
     def send_msg(self, msg):
+        msg_len = len(bytes(msg.encode(FORMAT)))
+        self.client_sock.sendall(str(msg_len).encode(FORMAT) + b' ' * (HEADER - len(str(msg_len))))
         msg = msg.encode(FORMAT)
         self.client_sock.sendall(msg)
 
     def receive_msg(self):
         while self.connected:
-            msg = self.client_sock.recv(1024).decode(FORMAT)
-            if msg == MSG_DISC:
-                # not actually necessary to send "!disc", 
-                # this is to stop the thread waiting for a message on shutdown
-                self.send_msg("!disc")
-                self.connected = False
-                break
-            if msg:
+            msg_len = self.client_sock.recv(HEADER).decode(FORMAT)
+            if msg_len:
+                msg = self.client_sock.recv(int(msg_len)).decode(FORMAT)
+                if msg == MSG_DISC:
+                    # not actually necessary to send "!disc", 
+                    # this is to stop the thread waiting for a message on shutdown
+                    self.send_msg("!disc")
+                    self.connected = False
+                    break
+                
                 print(msg)
+                
 
     def run(self):
         thread = threading.Thread(target=self.receive_msg)
@@ -43,7 +51,8 @@ class Client:
 
             if(msg == "!disc"):
                 break
-
+        
+        time.sleep(1)
         self.connected = False
         self.client_sock.close()
 
@@ -57,10 +66,31 @@ def input_msg(str=""):
     
     return msg
 
-if not IP:
-    IP = input("Enter IP address: ")
-if not PORT:
-    PORT = input("Enter TCP port: ")
+def main():
+    print("Welcome to the chat!")
+    print("For help use '!help', to connect to a server use '!conn'")
+    while True:
+        inp = input("--> ")
+        
+        if inp == "!exit":
+            break
+        elif inp == "!conn":
+            ip = input("Enter the ip address: ")
+            port = int(input("Enter TCP port: "))
 
-client = Client(IP, PORT)
-client.run()
+            try:
+                client = Client(IP, PORT)
+                client.run()
+            except:
+                print("Unable to connect to server. Try again")
+        elif inp == "!help":
+            print("Available commands: ")
+            print("\t!help - show this help screen")
+            print("\t!conn - connect to local server")
+            print("\t!exit - exit out of the program")
+        else:
+            print("Unknown command, use !help to show available options")
+
+
+if __name__=="__main__":
+    main()
