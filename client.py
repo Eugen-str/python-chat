@@ -90,7 +90,7 @@ def input_msg(screen):
 
     e = screen.get_event()
     if e and isinstance(e, KeyboardEvent):
-        if e.key_code == ord('\n'):
+        if e.key_code == ord('\n') or e.key_code == 13:
             msg = ''.join(inp)
             inp = []
             clear_line_at(screen, screen.height - 1, len(PROMPT))
