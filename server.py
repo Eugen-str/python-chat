@@ -13,6 +13,8 @@ MAGENTA = '\033[35m'
 CYAN = '\033[96m'
 RESET = '\033[0m'
 
+INCORRECT_MSG = "Incorrect usage of command. Type !help for help"
+
 class ClientHandler:
     def __init__(self, conn, addr):
         self.conn: socket = conn
@@ -92,53 +94,53 @@ class Server:
             client.set_nickname(str(random.randint(10000, 50000)))
         
         print(CYAN + f"[CLIENT] Client {client.nickname} connected" + RESET)
-        self.broadcast(CYAN + f"--- User {client.nickname} has joined the chat! ---" + RESET)
+        self.broadcast(f"--- User {client.nickname} has joined the chat! ---")
 
         while client.connected:
             msg = client.recv_msg()
             print(f"{client.nickname} sent: {msg}")
 
-            if msg == "!disc":
+            prompt = msg.split(' ')
+            cmd = prompt[0]
+
+            if cmd == "!disc":
                 print(CYAN + f"[CLIENT] Client {client.nickname} disconnected" + RESET)
-                self.broadcast(CYAN + f"--- User {client.nickname} has disconnected from the chat ---" + RESET)
+                self.broadcast(f"--- User {client.nickname} has disconnected from the chat ---")
                 client.connected = False
+
+            elif cmd == "!users":
+                client.send_msg("Online users: " + self.get_clients())
             
-            elif msg == "!users":
-                client.send_msg(YELLOW + "Online users: " + self.get_clients() + RESET)
-            
-            elif msg == "!help":
+            elif cmd == "!help":
                 help_str = CYAN + """Available commands:\n\t!users - show all connected users
-                \t!nick - change nickname\n\t!help - show help text\n\t!disc - disconnect""" + RESET
+                \t!nick <nickname> - change nickname\n\t!priv <user> <msg> - send private message to user
+                \t!help - show help text\n\t!disc - disconnect""" + RESET
                 client.send_msg(help_str)
             
-            elif msg == "!nick":
-                client.send_msg(YELLOW + "- Set your new nickname: " + RESET)
-                old = client.nickname
-                client.set_nickname(client.recv_msg())
-                print(CYAN + f"[CLIENT] Client {old} changed their username to {client.nickname}" + RESET)
-                self.broadcast(CYAN + f"--- User {old} has changed their nickname to {client.nickname} ---" + RESET)
-
-            elif msg == "!priv":
-                client.send_msg(YELLOW + "Online users: " + self.get_clients())
-                client.send_msg("- Send private message to: " + RESET)
-                
-                user = client.recv_msg()
-                receiver = None
-
-                for c in self.clients:
-                    if c.nickname == user:
-                        receiver = c
-                
-                if receiver == None:
-                    client.send_msg(RED + "User not available" + RESET)
-                elif receiver.nickname == client.nickname:
-                    client.send_msg(RED + "Cannot send message to yourself" + RESET)
+            elif cmd == "!nick":
+                if len(prompt) == 2:
+                    old = client.nickname
+                    client.set_nickname(prompt[1])
+                    print(CYAN + f"[CLIENT] Client {old} changed their username to {client.nickname}" + RESET)
+                    self.broadcast(f"--- User {old} has changed their nickname to {client.nickname} ---")
                 else:
-                    client.send_msg(YELLOW + "- Write private message: " + RESET)
-                    priv_msg = client.recv_msg()
-                    client.send_msg(YELLOW + "Message sent!" + RESET)
-                    receiver.send_msg(YELLOW + f"- Private message from {client.nickname}:" + RESET + f"\n{priv_msg}")
+                    client.send_msg(INCORRECT_MSG)
 
+
+            elif cmd == "!priv":
+                if len(prompt) == 3 and prompt[1] != '' and prompt[2] != '':
+                    user = prompt[1]
+                    for c in self.clients:
+                        if c.nickname == user:
+                            c.send_msg(f"Private message from {client.nickname}")
+                            c.send_msg(f"{client.nickname}: {prompt[2]}")
+                            continue
+                
+                client.send_msg(INCORRECT_MSG)
+
+            elif cmd == "!conn":
+                client.send_msg("You are already connected! To connect to a different server, disconnect first")
+            
             else:
                 self.broadcast_msg(client, msg)
         
