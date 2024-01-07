@@ -44,6 +44,7 @@ class Client:
                     break
                 
                 print_msg(msg, self.screen)
+                self.screen.refresh()
 
     def run(self):
         thread = threading.Thread(target=self.receive_msg)
@@ -58,10 +59,20 @@ class Client:
             
             if msg:
                 self.send_msg(msg)
-                print_msg(msg, self.screen)
+                print_msg(self.nickname + ": " + msg, self.screen)
             
-                if(msg == "!disc"):
-                    break
+                if(msg[0] == "!"):
+                    prompt = msg.split(' ')
+                    cmd = prompt[0]
+
+                    if cmd == "!disc":
+                        break
+                    
+                    elif cmd == "!help":
+                        cmd_help(self.screen)
+
+                    elif cmd == "!nick":
+                        self.nickname = cmd_nick(self.screen, prompt)
             
             self.screen.refresh()
         
@@ -112,7 +123,7 @@ def print_bar(screen, y=0, char="─"):
     if not y: y = screen.height - 2
     screen.print_at(char * screen.width, 0, y, bg=screen.COLOUR_DEFAULT)
     
-def print_prompt(screen, y=0):
+def print_prompt(screen):
     global p
     
     if p + 3 > screen.height:
@@ -141,8 +152,9 @@ def cmd_help(screen):
     print_msg("These are the available commands: ", screen)
     print_msg("    !conn <ip> <port> - connect to server", screen)
     print_msg("    !nick <nickname> - set nickname", screen)
-    print_msg("    !help - show this help screen", screen)
+    print_msg("    !users - prints all online users", screen)
     print_msg("    !disc - disconnect from server", screen)
+    print_msg("    !help - show this help screen", screen)
     print_msg("    !exit - exit the program\n", screen)
 
 def cmd_conn(screen, nickname, prompt):
@@ -163,6 +175,8 @@ def cmd_conn(screen, nickname, prompt):
             clear_screen(screen)
 
             client.run()
+
+            clear_screen(screen)
            
         except Exception as e:
             print_msg(f"ERROR: {e}", screen)
@@ -180,8 +194,10 @@ def cmd_nick(screen, prompt):
 def main(screen):
     global p
     nickname = None
-    clear_screen(screen)
     should_exit = False
+    
+    clear_screen(screen)
+    
     print_msg("Welcome to the chat!", screen)
     print_msg("type !help to see the available commands", screen)
     
@@ -206,6 +222,9 @@ def main(screen):
             elif cmd == "!exit":
                 should_exit = True
             
+            elif cmd == "!users" or cmd == "!priv":
+                print_msg("You are not connected to a server! Type !help to se available commands", screen)
+
             else:
                 print_msg("type !help to see the available commands", screen)
 

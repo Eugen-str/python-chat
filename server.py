@@ -111,12 +111,6 @@ class Server:
             elif cmd == "!users":
                 client.send_msg("Online users: " + self.get_clients())
             
-            elif cmd == "!help":
-                help_str = CYAN + """Available commands:\n\t!users - show all connected users
-                \t!nick <nickname> - change nickname\n\t!priv <user> <msg> - send private message to user
-                \t!help - show help text\n\t!disc - disconnect""" + RESET
-                client.send_msg(help_str)
-            
             elif cmd == "!nick":
                 if len(prompt) == 2:
                     old = client.nickname
@@ -125,7 +119,6 @@ class Server:
                     self.broadcast(f"--- User {old} has changed their nickname to {client.nickname} ---")
                 else:
                     client.send_msg(INCORRECT_MSG)
-
 
             elif cmd == "!priv":
                 if len(prompt) == 3 and prompt[1] != '' and prompt[2] != '':
